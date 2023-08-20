@@ -82,36 +82,33 @@ with stylable_container(
     "#### MBS Code Selection  \n"
     "Click the buttons to accept or reject the relevant MBS codes"
   )
-    
     #PRINTING RETURNED MBS CODES
     #Here we want to print a list of the retunred MBS Codes
-    #Splite the container into columns for better formatting
-    col1, col2 = st.columns([3, 1])
-
-    #Generate a random array of codes
-    # Define a list of possible characters for the strings
-    characters = "1234567890"
 
     # Generate a list of 10 random strings, each with a length of 5 characters
-    random_strings = ["MBS" + ''.join(random.choices(characters, k=5)) for _ in range(10)]
-    accept_reject_array = [False] * len(random_strings)
+    random_MBS = ["MBS1234","MBS2345", "MBS6789", "MBS0798","MBS4692"]
+
+    #Create an array with the corresponding number of checkboxes
+    accept_reject_array = [False] * len(random_MBS)
 
     data_df = pd.DataFrame(
         {
-            "Suggest Codes": random_strings,
-            "Accept or Reject": accept_reject_array,
+            "Suggest Codes": random_MBS,
+            "AorR": accept_reject_array,
         }
     )
 
     st.data_editor(
         data_df,
         column_config={
-            "Accept or Reject": st.column_config.CheckboxColumn(
+            "AorR": st.column_config.CheckboxColumn(
                 "Click to Accept",
                 help="Click to Accept or Reject a Code",
                 default=False,
             )
         },
-        disabled=["widgets"],
+        disabled=["Suggest Codes"],
         hide_index=True,
     )
+
+
