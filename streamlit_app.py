@@ -3,6 +3,7 @@ from langchain.llms import OpenAI
 from streamlit_extras.stylable_container import stylable_container
 from streamlit_extras.stateful_button import button
 import pandas as pd
+import openai
 from st_aggrid import AgGrid, GridUpdateMode
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 
@@ -43,13 +44,30 @@ st.header('🩺 Medical Billing Codes Quickstart 🚑')
 #Call sidebar function to implement the sidebar
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
+
+temperature = st.sidebar.slider(
+    "Temperature",
+    min_value=0.0,
+    max_value=1.0,
+    value=0.5,
+    step=0.1
+)
+tokens = st.sidebar.slider(
+    "Maximum Tokens",
+    min_value=64,
+    max_value=2048,
+    value=256,
+    step=64
+)
+
 #Side Bar code
 with st.sidebar:
   st.markdown(
     "## How to use\n"
     "1. Enter your medical short hand or clinical note into the top box 📝\n"  # noqa: E501
-    "2. Press submit 👆🏽\n"
-    "3. Accept the suggested MBS billing codes ✅\n"
+    "2. Optional: Adjust the temperature and tokens to change the output 🌡\n"
+    "3. Press submit 👆🏽\n"
+    "4. Accept the suggested MBS billing codes ✅\n"
   )
   st.markdown("---")
   st.markdown("# About")
@@ -65,19 +83,42 @@ with st.sidebar:
   st.markdown("Made by the Australian Microsoft Healthcare Team")
   st.markdown("---")
 
-openai_api_key = "abcdefg"
+openai.api_type = "azure"
+openai.api_key = "68454d59782d4c69b9f518d4741351ca"
+openai.api_base = 'https://rl-oai01.openai.azure.com/'
+openai.api_version = "2023-03-15-preview"
 
-def generate_response(input_text):
-  llm = OpenAI(temperature=0.7, openai_api_key=openai_api_key)
-  st.info(llm(input_text))
+
+def generate_codes(question, temperature=temperature, tokens=tokens):
+
+    system_prompt = """
+    You are an expert Australian medical practitioner and your role is to review the clinial notes provided by the user and respond with a list of the relevant SNOMED codes and MBS codes
+    Use the following format for your response:
+    | SNOMED CODE | SNOMED TERM | MBS CODE | MBS TERM |
+    Now please review the user's clinical notes:
+    """
+
+    messages = []
+
+    messages.append({"role" : "system", "content" : system_prompt})
+
+    messages.append({"role" : "user", "content" : question})
+
+    response = openai.ChatCompletion.create(
+                    engine="chat-gpt35",
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=tokens,
+                    n=1)
+    answer = response.choices[0].message.content
+    return answer
 
 with st.form('my_form'):
   text = st.text_area('Paste in a Clinical Note:', 'The patient is a 24-year-old male who presented to the clinic with an arm wound...')
   submitted = st.form_submit_button('Submit')
-  if not openai_api_key.startswith('sk-'):
-    st.warning('Please enter your OpenAI API key!', icon='⚠')
-  if submitted and openai_api_key.startswith('sk-'):
-    generate_response(text)
+  if submitted:
+    output_codes = generate_codes(text)
+    st.text_area("SNOWMED Code Output", output_codes, height=150)
 
 #This is the container which will contain the SNOWMED code response
 with stylable_container(
