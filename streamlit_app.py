@@ -88,13 +88,30 @@ openai.api_key = "68454d59782d4c69b9f518d4741351ca"
 openai.api_base = 'https://rl-oai01.openai.azure.com/'
 openai.api_version = "2023-03-15-preview"
 
-
+##################################################################################
 def generate_codes(question, temperature=temperature, tokens=tokens):
 
     system_prompt = """
     You are an expert Australian medical practitioner and your role is to review the clinial notes provided by the user and respond with a list of the relevant SNOMED codes and MBS codes
+    - Provide multiple codes if they are relevant.
+    - Do not provide irrelevant codes. If there are no relevant codes, say "there are no relevant codes".
     Use the following format for your response:
-    | SNOMED CODE | SNOMED TERM | MBS CODE | MBS TERM |
+    SNOMED CODE: 
+    SNOMED TERM:
+    SNOMED CODE: 
+    SNOMED TERM:
+    SNOMED CODE: 
+    SNOMED TERM:
+    SNOMED CODE: 
+    SNOMED TERM:
+    MBS CODE:
+    MBS TERM:
+    MBS CODE:
+    MBS TERM:
+    MBS CODE:
+    MBS TERM:
+    MBS CODE:
+    MBS TERM:
     Now please review the user's clinical notes:
     """
 
@@ -113,6 +130,22 @@ def generate_codes(question, temperature=temperature, tokens=tokens):
     answer = response.choices[0].message.content
     return answer
 
+def split_codes(data):
+    snomed_codes = []
+    snomed_terms = []
+    mbs_codes = []
+    mbs_terms = []
+    for line in data.split('\n'):
+        if line.startswith('SNOMED CODE:'):
+            snomed_codes.append(line.split(': ')[1])
+        elif line.startswith('SNOMED TERM:'):
+            snomed_terms.append(line.split(': ')[1])
+        elif line.startswith('MBS CODE:'):
+            mbs_codes.append(line.split(': ')[1])
+        elif line.startswith('MBS TERM:'):
+            mbs_terms.append(line.split(': ')[1])
+    return snomed_codes, snomed_terms, mbs_codes, mbs_terms
+##################################################################################
 with st.form('my_form'):
   text = st.text_area('Paste in a Clinical Note:', 'The patient is a 24-year-old male who presented to the clinic with an arm wound...')
   submitted = st.form_submit_button('Submit')
@@ -134,10 +167,29 @@ with stylable_container(
     
     st.markdown(
     "#### SNOWMED Code Output  \n"
-    "These are the corresponding SNOWMED codes to the input text."
+    "Click the checkboxes to accept the relevant MBS codes"
   )
+   
   
   #Put the response from the prompt in here
+    if submitted:
+        grid_key = 'snomed_key'
+        snomed_codes, snomed_terms, mbs_codes, mbs_terms = split_codes(output_codes)
+        snomed_data = {
+        'SNOMED CODES': snomed_codes,
+        'SNOMED TERMS': snomed_terms
+        }
+
+        df = pd.DataFrame(snomed_data)
+        gd = GridOptionsBuilder.from_dataframe(df)
+        gd.configure_selection(selection_mode='multiple', use_checkbox=True)
+        gridoptions = gd.build()
+
+        grid_table = AgGrid(df, height=250, gridOptions=gridoptions, key=grid_key,
+                            update_mode=GridUpdateMode.VALUE_CHANGED)
+        selected_rows1 = grid_table['selected_rows']
+        print(selected_rows1)
+
 
 #This is the container which will contain the MBS code response
 with stylable_container(
@@ -157,12 +209,72 @@ with stylable_container(
   )
     #PRINTING RETURNED MBS CODES
     #Here we want to print a list of the retunred MBS Codes
+    if submitted:
+        grid_key1 = 'mbs_key'
+        snomed_codes, snomed_terms, mbs_codes, mbs_terms = split_codes(output_codes)
+        MBS_data = {
+        'MBS CODES': mbs_codes,
+        'MBS TERMS': mbs_terms
+        }
+        df1 = pd.DataFrame(MBS_data)
+        gd1 = GridOptionsBuilder.from_dataframe(df1)
+        gd1.configure_selection(selection_mode='multiple', use_checkbox=True)
+        gridoptions1 = gd1.build()
+
+        grid_table1 = AgGrid(df1, height=250, gridOptions=gridoptions1, key=grid_key1,
+                            update_mode=GridUpdateMode.VALUE_CHANGED)
+        
+        selected_rows2 = grid_table1['selected_rows']
+    
+        print(selected_rows2)
+
+##### Here's the code for downloading the selected rows ########
+export = st.button('Download Selected Rows')
+if export and submitted:
+    selected_rows1 = grid_table['selected_rows']
+    selected_rows2 = grid_table1['selected_rows']
+    selected_df = st.dataframe(selected_rows1 + selected_rows2)
+    print(selected_df)
+    csv = selected_df.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()
+    href = f'<a href="data:file/csv;base64,{b64}" download="selected_rows.csv">Download Selected Rows</a>'
+    st.markdown(href, unsafe_allow_html=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     # Generate a list of 10 random strings, each with a length of 5 characters
-    random_MBS = ["MBS1234","MBS2345", "MBS6789", "MBS0798","MBS4692"]
+    #random_MBS = ["MBS1234","MBS2345", "MBS6789", "MBS0798","MBS4692"]
 
     #Create and array with procedures
-    procedure_array = ["Brain and Nervous System","Neck and Spine", "Blood", "Blood","Joint and Muscle"]
+    #procedure_array = ["Brain and Nervous System","Neck and Spine", "Blood", "Blood","Joint and Muscle"]
 
 
     # Apply the CheckboxColumn to the "AorR" column of the DataFrame
@@ -192,21 +304,21 @@ with stylable_container(
 # # Display the checkbox array
 # st.write(checkbox_array)
 
-######## TEST CODES #################
-    data = {
-        'MBS': random_MBS,
-        'Procedure': procedure_array
-    }
+# ######## TEST CODES #################
 
-    df = pd.DataFrame(data)
-    gd = GridOptionsBuilder.from_dataframe(df)
-    gd.configure_selection(selection_mode='multiple', use_checkbox=True)
-    gridoptions = gd.build()
+# data = {
+#     'MBS': random_MBS,
+#     'Procedure': procedure_array
+# }
 
-    grid_table = AgGrid(df, height=250, gridOptions=gridoptions,
-                        update_mode=GridUpdateMode.SELECTION_CHANGED)
+# df = pd.DataFrame(data)
+# gd = GridOptionsBuilder.from_dataframe(df)
+# gd.configure_selection(selection_mode='multiple', use_checkbox=True)
+# gridoptions = gd.build()
 
-    st.write('## Selected')
-    selected_row = grid_table["selected_rows"]
-    st.dataframe(selected_row)
+# grid_table = AgGrid(df, height=250, gridOptions=gridoptions,
+#                     update_mode=GridUpdateMode.SELECTION_CHANGED)
 
+# st.write('## Selected')
+# selected_row = grid_table["selected_rows"]
+# st.dataframe(selected_row)
