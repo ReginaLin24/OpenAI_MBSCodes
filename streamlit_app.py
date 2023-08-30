@@ -4,8 +4,9 @@ from streamlit_extras.stylable_container import stylable_container
 from streamlit_extras.stateful_button import button
 import pandas as pd
 import openai
-from st_aggrid import AgGrid, GridUpdateMode
+from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode, JsCode
 from st_aggrid.grid_options_builder import GridOptionsBuilder
+import base64
 
 ################   FUNCTIONS  ######################
 def get_session_state():
@@ -34,6 +35,11 @@ def clear_checkbox_state():
     session_state = get_session_state()
     if "checkbox_state" in session_state:
         del session_state.checkbox_state
+
+@st.cache_data
+def convert_df(df):
+    # IMPORTANT: Cache the conversion to prevent computation on every rerun
+    return df.to_csv().encode('utf-8')
 
 
 ###########################################################
@@ -96,14 +102,14 @@ def generate_codes(question, temperature=temperature, tokens=tokens):
     - Provide multiple codes if they are relevant.
     - Do not provide irrelevant codes. If there are no relevant codes, say "there are no relevant codes".
     Use the following format for your response:
-    SNOMED CODE: 
-    SNOMED TERM:
-    SNOMED CODE: 
-    SNOMED TERM:
-    SNOMED CODE: 
-    SNOMED TERM:
-    SNOMED CODE: 
-    SNOMED TERM:
+    SNOWMED CODE: 
+    SNOwMED TERM:
+    SNOWMED CODE: 
+    SNOWMED TERM:
+    SNOWMED CODE: 
+    SNOWMED TERM:
+    SNOWMED CODE: 
+    SNOWMED TERM:
     MBS CODE:
     MBS TERM:
     MBS CODE:
@@ -136,109 +142,209 @@ def split_codes(data):
     mbs_codes = []
     mbs_terms = []
     for line in data.split('\n'):
-        if line.startswith('SNOMED CODE:'):
+        if line.startswith('SNOWMED CODE:'):
             snomed_codes.append(line.split(': ')[1])
-        elif line.startswith('SNOMED TERM:'):
+        elif line.startswith('SNOWMED TERM:'):
             snomed_terms.append(line.split(': ')[1])
         elif line.startswith('MBS CODE:'):
             mbs_codes.append(line.split(': ')[1])
         elif line.startswith('MBS TERM:'):
             mbs_terms.append(line.split(': ')[1])
     return snomed_codes, snomed_terms, mbs_codes, mbs_terms
-##################################################################################
+
+def click_button():
+    st.session_state.clicked = True
+
+def exp_button():
+    st.session_state.export = True
+
+##########   SESSION STATE     #############
+
+if 'clicked' not in st.session_state:
+    st.session_state.clicked = False
+
+if 'output_codes' not in st.session_state:
+    #Initialize output_codes as empty
+    st.session_state.output_codes = ""
+
+#Initialize a variable to note the run time
+if 'runtime' not in st.session_state:
+    st.session_state.runtime = 1
+
+if 'export' not in st.session_state:
+    st.session_state.export = False
+
+if 'selected' not in st.session_state:
+    #Initialize selected state as an empty data frame
+    st.session_state.selected = pd.DataFrame()
+
+#################   MAIN    ###################
+
 with st.form('my_form'):
   text = st.text_area('Paste in a Clinical Note:', 'The patient is a 24-year-old male who presented to the clinic with an arm wound...')
-  submitted = st.form_submit_button('Submit')
-  if submitted:
+  submitted = st.form_submit_button('Submit',on_click=click_button)
+  if st.session_state.clicked & st.session_state.runtime == 1:
     output_codes = generate_codes(text)
-    st.text_area("SNOWMED Code Output", output_codes, height=150)
+    st.session_state.output_codes = output_codes    
+    st.text_area("Output", output_codes, height=150)
+
+    #Set the runtime to 0 so that the code doesn't run again
+    st.session_state.runtime = 0
+
+
+    
+st.markdown(
+"#### SNOWMED Code Output  \n"
+"Click the checkboxes to accept the relevant SNOWMED codes"
+)
+
+################## SNOWMED CODES ############################
+if st.session_state.clicked:
+    grid_key = 'snomed_key'
+    snomed_codes, snomed_terms, mbs_codes, mbs_terms = split_codes(st.session_state.output_codes)
+    snomed_data = {
+    'SNOWMED CODES': snomed_codes,
+    'SNOWMED TERMS': snomed_terms
+    }
+    df = pd.DataFrame(snomed_data)
+
+    gd = GridOptionsBuilder.from_dataframe(df)
+    gd.configure_column("SNOWMED CODES", width=50)
+    gd.configure_selection(selection_mode='multiple', use_checkbox=True)
+    gridOptions = gd.build()
+
+    grid_table = AgGrid(
+        df, 
+        width='100%',
+        gridOptions=gridOptions,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        data_return_mode=DataReturnMode.FILTERED,
+        fit_columns_on_grid_load=True,
+    )
+
+    selected_rows = grid_table['selected_rows']
+
+
+##################    MBS CODES   ############################ 
+st.markdown(
+"#### MBS Code Selection  \n"
+"Click the checkboxes to accept the relevant MBS codes"
+)
+#PRINTING RETURNED MBS CODES
+#Here we want to print a list of the retunred MBS Codes
+if st.session_state.clicked:
+    grid_key1 = 'mbs_key'
+    snomed_codes, snomed_terms, mbs_codes, mbs_terms = split_codes(st.session_state.output_codes)
+    MBS_data = {
+        'MBS CODES': mbs_codes,
+        'MBS TERMS': mbs_terms
+    }
+    
+    #Create the data frame with the data 
+    df1 = pd.DataFrame(MBS_data)
+
+    #Set up the Grid
+    gd1 = GridOptionsBuilder.from_dataframe(df1)
+
+    #Configure the column settings to fit on the page an enable grouping
+    gd1.configure_default_column(groupable=True, value=True, enableRowGroup=True, aggFunc='sum', editable=True)
+    gd1.configure_column("MBS CODES", width=50)
+
+    #Configure the selection mode to allow multiple selections and use checkboxes
+    gd1.configure_selection(selection_mode='multiple', use_checkbox=True)
+
+    gd1.configure_grid_options(domLayout='normal')
+    gridOptions1 = gd1.build()
+
+    grid_table1 = AgGrid(
+        df1, 
+        width='100%',
+        gridOptions=gridOptions1,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        data_return_mode=DataReturnMode.FILTERED,
+        fit_columns_on_grid_load=True,
+    )
+
+    df1 = grid_table1['data']
+    selected_rows1 = grid_table1['selected_rows']
+    selected_df = pd.DataFrame(selected_rows1).apply(pd.to_numeric, errors='coerce')
+
+    st.session_state.selected = selected_df
+
+    #Write out the selected grid table - DEBUGGING 
+    # st.write(grid_table1['selected_rows'])
+
+#Debugging statements 
+print("Submitted =",submitted)
+print("The Clicked sessions state is ",st.session_state.clicked)
+print("The run time sessions state is ",st.session_state.runtime)
+
+##### Download the selected rows ########
+
+#Save the selected rows in the session state
+export_rows=st.session_state.selected
+
+#Pass the session state 
+csv = convert_df(export_rows)
+
+st.download_button(label="Download data as CSV",data=csv,file_name='codes.csv',mime='text/csv')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Extra Code
+
+# export = st.button('Download Selected Rows', on_click=exp_button)
+
+# if export:
+#     # selected_rows1 = grid_table['selected_rows']
+#     # selected_rows2 = grid_table1['selected_rows']
+#     # selected_df = st.dataframe(selected_rows1 + selected_rows2)
+#     # print(selected_df)
+#     export_rows=st.session_state.selected
+#     csv = export_rows.to_csv(index=False)
+#     b64 = base64.b64encode(csv.encode()).decode()
+#     href = f'<a href="data:file/csv;base64,{b64}" download="selected_rows.csv">Download Selected Rows</a>'
+#     st.markdown(href, unsafe_allow_html=True)
+
+
 
 #This is the container which will contain the SNOWMED code response
-with stylable_container(
-    key="container_with_border",
-    css_styles="""
-        {
-            border: 1px solid rgba(49, 51, 63, 0.2);
-            border-radius: 0.5rem;
-            padding: calc(1em - 1px)
-        }
-        """,
-):
-    
-    st.markdown(
-    "#### SNOWMED Code Output  \n"
-    "Click the checkboxes to accept the relevant MBS codes"
-  )
-   
-  
-  #Put the response from the prompt in here
-    if submitted:
-        grid_key = 'snomed_key'
-        snomed_codes, snomed_terms, mbs_codes, mbs_terms = split_codes(output_codes)
-        snomed_data = {
-        'SNOMED CODES': snomed_codes,
-        'SNOMED TERMS': snomed_terms
-        }
+# with stylable_container(
+#     key="container_with_border",
+#     css_styles="""
+#         {
+#             border: 1px solid rgba(49, 51, 63, 0.2);
+#             border-radius: 0.5rem;
+#             padding: calc(1em - 1px)
+#         }
+#         """,
+# ):
 
-        df = pd.DataFrame(snomed_data)
-        gd = GridOptionsBuilder.from_dataframe(df)
-        gd.configure_selection(selection_mode='multiple', use_checkbox=True)
-        gridoptions = gd.build()
 
-        grid_table = AgGrid(df, height=250, gridOptions=gridoptions, key=grid_key,
-                            update_mode=GridUpdateMode.VALUE_CHANGED)
-        selected_rows1 = grid_table['selected_rows']
-        print(selected_rows1)
 
 
 #This is the container which will contain the MBS code response
-with stylable_container(
-    key="container_with_border",
-    css_styles="""
-        {
-            border: 1px solid rgba(49, 51, 63, 0.2);
-            border-radius: 0.5rem;
-            padding: calc(1em - 1px)
-        }
-        """,
-):
-    
-    st.markdown(
-    "#### MBS Code Selection  \n"
-    "Click the checkboxes to accept the relevant MBS codes"
-  )
-    #PRINTING RETURNED MBS CODES
-    #Here we want to print a list of the retunred MBS Codes
-    if submitted:
-        grid_key1 = 'mbs_key'
-        snomed_codes, snomed_terms, mbs_codes, mbs_terms = split_codes(output_codes)
-        MBS_data = {
-        'MBS CODES': mbs_codes,
-        'MBS TERMS': mbs_terms
-        }
-        df1 = pd.DataFrame(MBS_data)
-        gd1 = GridOptionsBuilder.from_dataframe(df1)
-        gd1.configure_selection(selection_mode='multiple', use_checkbox=True)
-        gridoptions1 = gd1.build()
-
-        grid_table1 = AgGrid(df1, height=250, gridOptions=gridoptions1, key=grid_key1,
-                            update_mode=GridUpdateMode.VALUE_CHANGED)
-        
-        selected_rows2 = grid_table1['selected_rows']
-    
-        print(selected_rows2)
-
-##### Here's the code for downloading the selected rows ########
-export = st.button('Download Selected Rows')
-if export and submitted:
-    selected_rows1 = grid_table['selected_rows']
-    selected_rows2 = grid_table1['selected_rows']
-    selected_df = st.dataframe(selected_rows1 + selected_rows2)
-    print(selected_df)
-    csv = selected_df.to_csv(index=False)
-    b64 = base64.b64encode(csv.encode()).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="selected_rows.csv">Download Selected Rows</a>'
-    st.markdown(href, unsafe_allow_html=True)
+# with stylable_container(
+#     key="container_with_border",
+#     css_styles="""
+#         {
+#             border: 1px solid rgba(49, 51, 63, 0.2);
+#             border-radius: 0.5rem;
+#             padding: calc(1em - 1px)
+#         }
+#         """,
+# ):
 
 
 
@@ -248,48 +354,6 @@ if export and submitted:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # Generate a list of 10 random strings, each with a length of 5 characters
-    #random_MBS = ["MBS1234","MBS2345", "MBS6789", "MBS0798","MBS4692"]
-
-    #Create and array with procedures
-    #procedure_array = ["Brain and Nervous System","Neck and Spine", "Blood", "Blood","Joint and Muscle"]
-
-
-    # Apply the CheckboxColumn to the "AorR" column of the DataFrame
-#     st.data_editor(
-#         data_df,
-#         column_config={
-#             "AorR": st.column_config.CheckboxColumn(
-#                 "Click to Accept",
-#                 help="Click to Accept or Reject a Code",
-#                 default=False,
-#             )
-#         },
-#         disabled=["Suggest Codes"],
-#         hide_index=True,
-#     )
 
 # # Apply the update_checkbox_state function to each row in the DataFrame
 # data_df.apply(update_checkbox_state, axis=1)
