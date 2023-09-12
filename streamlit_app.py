@@ -102,14 +102,12 @@ def generate_codes(question, temperature=temperature, tokens=tokens):
     - Provide multiple codes if they are relevant.
     - Do not provide irrelevant codes. If there are no relevant codes, say "there are no relevant codes".
     Use the following format for your response:
-    SNOWMED CODE: 
-    SNOwMED TERM:
-    SNOWMED CODE: 
-    SNOWMED TERM:
-    SNOWMED CODE: 
-    SNOWMED TERM:
-    SNOWMED CODE: 
-    SNOWMED TERM:
+    SNOMED CODE: 
+    SNOMED TERM:
+    SNOMED CODE: 
+    SNOMED TERM:
+    SNOMED CODE: 
+    SNOMED TERM:
     MBS CODE:
     MBS TERM:
     MBS CODE:
@@ -142,9 +140,9 @@ def split_codes(data):
     mbs_codes = []
     mbs_terms = []
     for line in data.split('\n'):
-        if line.startswith('SNOWMED CODE:'):
+        if line.startswith('SNOMED CODE:'):
             snomed_codes.append(line.split(': ')[1])
-        elif line.startswith('SNOWMED TERM:'):
+        elif line.startswith('SNOMED TERM:'):
             snomed_terms.append(line.split(': ')[1])
         elif line.startswith('MBS CODE:'):
             mbs_codes.append(line.split(': ')[1])
@@ -194,22 +192,22 @@ with st.form('my_form'):
 
     
 st.markdown(
-"#### SNOWMED Code Output  \n"
-"Click the checkboxes to accept the relevant SNOWMED codes"
+"#### SNOMED Code Output  \n"
+"Click the checkboxes to accept the relevant SNOMED codes"
 )
 
-################## SNOWMED CODES ############################
+################## SNOMED CODES ############################
 if st.session_state.clicked:
     grid_key = 'snomed_key'
     snomed_codes, snomed_terms, mbs_codes, mbs_terms = split_codes(st.session_state.output_codes)
     snomed_data = {
-    'SNOWMED CODES': snomed_codes,
-    'SNOWMED TERMS': snomed_terms
+    'SNOMED CODES': snomed_codes,
+    'SNOMED TERMS': snomed_terms
     }
     df = pd.DataFrame(snomed_data)
 
     gd = GridOptionsBuilder.from_dataframe(df)
-    gd.configure_column("SNOWMED CODES", width=50)
+    gd.configure_column("SNOMED CODES", width=50)
     gd.configure_selection(selection_mode='multiple', use_checkbox=True)
     gridOptions = gd.build()
 
