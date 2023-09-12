@@ -9,6 +9,5 @@ azure-appconfiguration-provider
 azure-identity
 azure-keyvault-secrets
 openai
-st_aggrid
 pandas
 streamlit_extras
