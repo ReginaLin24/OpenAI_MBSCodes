@@ -8,6 +8,7 @@ from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 import base64
 
+
 ################   FUNCTIONS  ######################
 def get_session_state():
     session = st.session_state
@@ -90,7 +91,7 @@ with st.sidebar:
   st.markdown("---")
 
 openai.api_type = "azure"
-openai.api_key = "68454d59782d4c69b9f518d4741351ca"
+openai.api_key = st.secrets['path']
 openai.api_base = 'https://rl-oai01.openai.azure.com/'
 openai.api_version = "2023-03-15-preview"
 

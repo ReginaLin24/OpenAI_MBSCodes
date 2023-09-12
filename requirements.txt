@@ -11,3 +11,4 @@ azure-keyvault-secrets
 openai
 pandas
 streamlit_extras
+streamlit-aggrid  
